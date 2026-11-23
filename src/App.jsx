@@ -1,6 +1,21 @@
 import { useState } from 'react';
-import { articles, certificates, profile, projects } from './content';
+import { articles, books, certificates, profile, projects } from './content';
+import AdminSession from './AdminSession';
+import ContentEditor from './ContentEditor';
+import { usePortfolioAdmin } from './admin';
+import { editorFields } from './editorFields';
 import ReadingRoom from './library/ReadingRoom';
+
+const defaultContent = {
+  about: { name: profile.name, summary: profile.summary },
+  education: profile.education,
+  experience: profile.experience,
+  certificates,
+  projects,
+  articles,
+  passions: profile.passions.map((text) => ({ text })),
+  books: books.length ? books : null,
+};
 
 const sections = [
   ['about', 'About me'],
@@ -28,8 +43,8 @@ function Timeline({ entries, empty }) {
 
   return (
     <ul className="space-y-6">
-      {entries.map(({ title, organization, dates, description, url }) => (
-        <li key={`${title}-${organization}-${dates}`}>
+      {entries.map(({ id, title, organization, dates, description, url }) => (
+        <li key={id || `${title}-${organization}-${dates}`}>
           <h3 className="text-lg font-semibold">
             {url ? <a href={url} className="text-moss underline underline-offset-4">{title}</a> : title}
           </h3>
@@ -41,8 +56,18 @@ function Timeline({ entries, empty }) {
   );
 }
 
-export default function App({ showSampleCatalog }) {
+export default function App({ showSampleCatalog, publishingEnabled = false }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { content, session, busy, publish, changeSession } = usePortfolioAdmin(defaultContent, publishingEnabled);
+
+  function editor(section, title) {
+    if (!session.isAdmin) return null;
+    return (
+      <ContentEditor title={title} fields={editorFields[section]} busy={busy}
+        entries={section === 'about' ? [content.about] : (content[section] ?? [])} single={section === 'about'}
+        onSave={(entries) => publish(section, section === 'about' ? entries[0] : entries)} />
+    );
+  }
 
   return (
     <>
@@ -52,7 +77,7 @@ export default function App({ showSampleCatalog }) {
       <header className="sticky top-0 z-10 border-b border-rule bg-paper">
         <nav aria-label="Portfolio sections" className="mx-auto max-w-6xl px-5 sm:px-8">
           <div className="flex min-h-16 flex-wrap items-center justify-between gap-x-6">
-            <a href="#about" className="font-serif text-xl">{profile.name || 'Personal portfolio'}</a>
+            <a href="#about" className="font-serif text-xl">{content.about.name || 'Personal portfolio'}</a>
             <button type="button" aria-expanded={menuOpen} aria-controls="section-links"
               className="rounded-full border border-rule px-4 py-2 text-sm lg:hidden"
               onClick={() => setMenuOpen(!menuOpen)}>
@@ -76,14 +101,15 @@ export default function App({ showSampleCatalog }) {
           <div className="mx-auto grid max-w-6xl items-center gap-8 px-5 py-16 sm:px-8 md:min-h-112 md:grid-cols-[3fr_2fr] md:py-20">
             <div>
               <h1 id="about-title" className="font-serif text-6xl leading-none tracking-tight sm:text-7xl lg:text-8xl">
-                {profile.name || 'About me'}
+                {content.about.name || 'About me'}
               </h1>
-              <p className="mt-6 max-w-lg text-lg leading-relaxed text-paper/85">
-                {profile.summary || 'A professional summary will be added here.'}
+              <p className="mt-6 max-w-lg whitespace-pre-line text-lg leading-relaxed text-paper/85">
+                {content.about.summary || 'A professional summary will be added here.'}
               </p>
               <a href="#projects" className="mt-8 inline-block rounded-full bg-lime px-5 py-3 text-sm font-semibold text-ink hover:bg-paper focus-visible:outline-lime">
                 Explore projects <span aria-hidden="true">↘</span>
               </a>
+              {editor('about', 'profile')}
             </div>
             <div aria-hidden="true" className="hero-art relative hidden aspect-[5/4] place-items-center md:grid">
               <div className="absolute inset-0 rounded-[50%] border border-paper/25" />
@@ -95,18 +121,21 @@ export default function App({ showSampleCatalog }) {
         </section>
         <div className="mx-auto max-w-6xl px-5 pt-8 sm:px-8">
           <Section id="education" title="Education">
-            <Timeline entries={profile.education} empty="Education details are forthcoming." />
+            <Timeline entries={content.education} empty="Education details are forthcoming." />
+            {editor('education', 'education entry')}
           </Section>
           <Section id="certificates" title="Certificates">
-            <Timeline entries={certificates} empty="Certificates will appear here." />
+            <Timeline entries={content.certificates} empty="Certificates will appear here." />
+            {editor('certificates', 'certificate')}
           </Section>
           <Section id="experience" title="Experience">
-            <Timeline entries={profile.experience} empty="Professional experience is forthcoming." />
+            <Timeline entries={content.experience} empty="Professional experience is forthcoming." />
+            {editor('experience', 'experience entry')}
           </Section>
           <Section id="projects" title="Projects">
             <ul className="space-y-8">
-              {projects.map(({ title, description, contribution, url }) => (
-                <li key={title}>
+              {content.projects.map(({ id, title, description, contribution, url }) => (
+                <li key={id || title}>
                   <h3 className="font-serif text-3xl">{title}</h3>
                   <p className="mt-2">{description}</p>
                   <p className="mt-2 text-muted">{contribution}</p>
@@ -118,23 +147,28 @@ export default function App({ showSampleCatalog }) {
                 </li>
               ))}
             </ul>
+            {editor('projects', 'project')}
           </Section>
           <Section id="articles" title="Articles">
-            <Timeline entries={articles} empty="Published articles will appear here." />
+            <Timeline entries={content.articles} empty="Published articles will appear here." />
+            {editor('articles', 'article')}
           </Section>
           <Section id="passion" title="Passion">
-            {profile.passions.length
-              ? <div className="space-y-3">{profile.passions.map((passion) => <p key={passion}>{passion}</p>)}</div>
+            {content.passions.length
+              ? <div className="space-y-3">{content.passions.map(({ id, text }) => <p key={id || text} className="whitespace-pre-line">{text}</p>)}</div>
               : <p className="text-muted">Personal interests are forthcoming.</p>}
+            {editor('passions', 'passion')}
           </Section>
           <Section id="library" title="Library">
-            <ReadingRoom showSampleCatalog={showSampleCatalog} />
+            <ReadingRoom catalog={content.books} showSampleCatalog={content.books === null && showSampleCatalog} />
+            {editor('books', 'book')}
           </Section>
         </div>
       </main>
       <footer className="border-t border-rule">
-        <div className="mx-auto max-w-6xl px-5 py-6 sm:px-8">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-start justify-between gap-6 px-5 py-6 sm:px-8">
           <a href="#about" className="text-sm text-moss underline underline-offset-4">Back to top ↑</a>
+          <AdminSession session={session} busy={busy} onChange={changeSession} />
         </div>
       </footer>
     </>

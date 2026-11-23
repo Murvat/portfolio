@@ -2,18 +2,21 @@ import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { loadBooks, toggleSaved } from './store';
 
-export default function ReadingRoom({ showSampleCatalog }) {
+export default function ReadingRoom({ showSampleCatalog, catalog = null }) {
   const [query, setQuery] = useState('');
   const [onlySaved, setOnlySaved] = useState(false);
   const { books, savedIds, status } = useSelector((state) => state.readingRoom);
   const dispatch = useDispatch();
 
   useEffect(() => {
-    dispatch(loadBooks());
-  }, [dispatch]);
+    if (catalog === null) dispatch(loadBooks());
+  }, [catalog, dispatch]);
 
   const search = query.trim().toLowerCase();
-  const visibleBooks = books.filter(({ id, title, author }) => (
+  const available = catalog ?? books;
+  const catalogStatus = catalog === null ? status : 'ready';
+  const savedCount = available.filter(({ id }) => savedIds.includes(id)).length;
+  const visibleBooks = available.filter(({ id, title, author }) => (
     (!onlySaved || savedIds.includes(id)) &&
     [title, author].some((field) => field.toLowerCase().includes(search))
   ));
@@ -23,7 +26,7 @@ export default function ReadingRoom({ showSampleCatalog }) {
       <h3 className="font-serif text-3xl">Reading Room</h3>
       <div className="mt-2 flex flex-wrap justify-between gap-2 text-sm text-muted">
         <p>{showSampleCatalog ? 'Browse a sample catalog and save a reading list.' : 'Browse books and save a reading list.'}</p>
-        <span aria-live="polite">{savedIds.length} saved</span>
+        <span aria-live="polite">{savedCount} saved</span>
       </div>
       <div className="mt-5 flex flex-wrap items-end gap-4 border-b border-rule pb-6">
         <label className="w-full max-w-md text-sm font-semibold">
@@ -37,20 +40,20 @@ export default function ReadingRoom({ showSampleCatalog }) {
           Saved only
         </button>
       </div>
-      {status === 'idle' || status === 'loading' ? <p className="py-6" role="status">Loading books…</p> : null}
-      {status === 'error' && (
+      {catalogStatus === 'idle' || catalogStatus === 'loading' ? <p className="py-6" role="status">Loading books…</p> : null}
+      {catalogStatus === 'error' && (
         <div className="py-6">
           <p role="alert">Couldn’t load the books.</p>
           <button type="button" onClick={() => dispatch(loadBooks())}
             className="mt-3 font-semibold text-moss underline underline-offset-4">Try again</button>
         </div>
       )}
-      {status === 'ready' && visibleBooks.length === 0 && (
+      {catalogStatus === 'ready' && visibleBooks.length === 0 && (
         <p className="py-6 text-muted" role="status">
           {search ? 'No books match your search.' : onlySaved ? 'Your reading list is empty.' : 'The catalog is empty.'}
         </p>
       )}
-      {status === 'ready' && visibleBooks.length > 0 && (
+      {catalogStatus === 'ready' && visibleBooks.length > 0 && (
         <ul aria-label="Books" className="divide-y divide-rule">
           {visibleBooks.map(({ id, title, author, category, note }) => {
             const saved = savedIds.includes(id);

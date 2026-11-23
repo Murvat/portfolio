@@ -11,6 +11,6 @@ const store = createReadingRoomStore(createBookClient(apiBaseUrl));
 
 createRoot(document.getElementById('root')).render(
   <Provider store={store}>
-    <App showSampleCatalog={!apiBaseUrl && books.length === 0} />
+    <App publishingEnabled showSampleCatalog={!apiBaseUrl && books.length === 0} />
   </Provider>,
 );
